@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DaySpark - 每日简记 & 思考</title>
+    <style>
+        /* --- CSS 样式部分 --- */
+        :root {
+            --primary: #6c5ce7;
+            --secondary: #a29bfe;
+            --accent: #00cec9; 
+            --orange: #fdcb6e;
+            --green: #00b894;
+            --bg: #fdfdfd;
+            --text: #2d3436;
+            --shadow: 0 10px 20px rgba(0,0,0,0.08);
+            --input-bg: #fafafa;
+        }
+
+        body { margin: 0; font-family: 'PingFang SC', 'Helvetica Neue', sans-serif; background-color: #f0f2f5; overflow: hidden; height: 100vh; color: var(--text); -webkit-font-smoothing: antialiased; }
+        .app-container { position: relative; width: 100%; height: 100%; max-width: 600px; margin: 0 auto; background: var(--bg); overflow: hidden; box-shadow: 0 0 30px rgba(0,0,0,0.1); }
+
+        /* 页面切换 */
+        .page { position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 20px; box-sizing: border-box; background: var(--bg); transform: translateX(100%); transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1); display: flex; flex-direction: column; overflow-y: auto; z-index: 0; visibility: hidden; }
+        .page.active { transform: translateX(0); z-index: 2; visibility: visible; }
+        .page.previous { transform: translateX(-30%); z-index: 1; opacity: 0.8; visibility: visible; }
+
+        /* 顶部导航 */
+        .header { display: flex; justify-content: space-between; align-items: center; height: 50px; margin-bottom: 10px; flex-shrink: 0; }
+        .logo { font-weight: 900; color: var(--primary); font-size: 1.2rem; }
+        .btn-icon { background: none; border: none; font-size: 1rem; cursor: pointer; color: #555; padding: 10px; }
+
+        /* 首页组件 */
+        .quote-container { flex: 1; display: flex; flex-direction: column; justify-content: center; text-align: center; padding: 10px; }
+        .quote-text { font-size: 1.4rem; font-weight: bold; font-family: 'Songti SC', serif; color: #333; margin-bottom: 25px; line-height: 1.6; }
+        .quote-author { font-size: 0.95rem; color: #888; font-style: italic; }
+        .refresh-btn { margin-top: 40px; align-self: center; background: white; border: 1px solid #ddd; padding: 8px 20px; border-radius: 20px; color: #666; cursor: pointer; font-size: 0.85rem; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+
+        .home-actions { display: flex; flex-direction: column; gap: 12px; margin-bottom: 30px; flex-shrink: 0; }
+        .btn-main { background: var(--primary); color: white; border: none; padding: 16px; border-radius: 12px; font-size: 1.1rem; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4); text-align: center; }
+        .btn-sub { background: white; color: var(--primary); border: 2px solid var(--primary); padding: 14px; border-radius: 12px; font-size: 1rem; font-weight: bold; cursor: pointer; text-align: center; }
+        .btn-thought { background: white; color: #e67e22; border: 2px solid #e67e22; padding: 14px; border-radius: 12px; font-size: 1rem; font-weight: bold; cursor: pointer; text-align: center; }
+        .btn-float-action { position: absolute; bottom: 30px; right: 25px; width: 56px; height: 56px; border-radius: 50%; background: #e17055; color: white; border: none; box-shadow: 0 4px 15px rgba(225, 112, 85, 0.5); font-size: 2rem; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center;}
+
+        /* 通用卡片 */
+        .card-section { background: white; padding: 20px; border-radius: 16px; box-shadow: var(--shadow); margin-bottom: 15px; }
+        textarea.area-box, input.input-box { width: 100%; padding: 12px; border: 1px solid #eee; border-radius: 8px; background: var(--input-bg); font-family: inherit; font-size: 0.95rem; box-sizing: border-box; }
+        textarea:focus, input:focus { outline: none; border-color: var(--primary); background: white; }
+
+        /* 简记页面样式 */
+        .fogg-block { margin-bottom: 20px; border-bottom: 1px dashed #eee; padding-bottom: 15px; }
+        .fogg-title { font-size: 1rem; font-weight: bold; color: var(--primary); margin-bottom: 8px; }
+        .fogg-desc { font-size: 0.8rem; color: #999; margin-bottom: 10px; }
+        .input-group { display: flex; flex-direction: column; gap: 8px; }
+        .input-iconed { width: 100%; padding: 10px 10px 10px 35px; border: 1px solid #eee; border-radius: 8px; background: var(--input-bg) no-repeat 10px center; box-sizing: border-box; }
+        .bg-gratitude { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='14'%3E🙏%3C/text%3E%3C/svg%3E"); }
+        .bg-surprise { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='14'%3E✨%3C/text%3E%3C/svg%3E"); }
+        .bg-unhappy { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='14'%3E🌧️%3C/text%3E%3C/svg%3E"); }
+        .action-label { margin-top: 10px; margin-bottom: 5px; font-size: 0.9rem; font-weight: bold; color: var(--accent); }
+        .input-action { width: 100%; padding: 12px; border: 2px solid rgba(0, 206, 201, 0.2); border-radius: 8px; box-sizing: border-box; }
+
+        /* --- 思考与问题板块样式 --- */
+        .switch-container { display: flex; align-items: center; margin: 15px 0 10px 0; gap: 10px; font-size: 0.95rem; color: #555; }
+        .toggle-checkbox { transform: scale(1.3); cursor: pointer; }
+        
+        /* 来源选择单选组 */
+        .source-group { display: flex; gap: 10px; margin-top: 5px; margin-bottom: 10px; }
+        .source-label {
+            flex: 1; text-align: center; padding: 8px; border: 1px solid #ddd; border-radius: 8px;
+            font-size: 0.85rem; cursor: pointer; color: #666; transition: all 0.2s; background: white;
+        }
+        .source-input { display: none; } /* 隐藏原生radio */
+        .source-input:checked + .source-label {
+            border-color: #e67e22; background: #fff5e6; color: #e67e22; font-weight: bold;
+        }
+
+        .thought-list-title { font-size: 1.1rem; font-weight: bold; margin: 25px 0 10px 0; color: #333; display: flex; justify-content: space-between; align-items: center; }
+        .count-badge { font-size: 0.8rem; padding: 2px 8px; border-radius: 10px; background: #eee; color: #666; font-weight: normal; }
+        
+        .thought-item { background: white; padding: 15px; border-radius: 12px; margin-bottom: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); border-left: 4px solid #ccc; position: relative; }
+        .thought-item.solved { border-left-color: var(--green); }
+        .thought-item.unsolved { border-left-color: var(--orange); }
+        
+        .t-question { font-weight: bold; font-size: 1rem; color: #333; margin-bottom: 5px; line-height: 1.4; padding-right: 25px; /* 防止文字遮挡删除按钮 */ }
+        .t-answer { font-size: 0.9rem; color: #666; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f0f0f0; line-height: 1.4; }
+        
+        /* 来源标签 */
+        .tag-source { font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; margin-right: 5px; color: white; vertical-align: middle; }
+        .tag-source.self { background: #00cec9; }
+        .tag-source.ai { background: #6c5ce7; }
+        .tag-source.other { background: #b2bec3; }
+
+        .t-date { font-size: 0.75rem; color: #bbb; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .btn-solve-now { background: var(--primary); color: white; border: none; border-radius: 15px; padding: 4px 12px; font-size: 0.75rem; cursor: pointer; }
+
+        /* 新增：思考列表的删除按钮 */
+        .btn-thought-delete { position: absolute; top: 10px; right: 10px; color: #ff7675; background: none; border: none; font-size: 1.2rem; cursor: pointer; padding: 0 5px; line-height: 1; opacity: 0.6; transition: opacity 0.2s; }
+        .btn-thought-delete:hover { opacity: 1; }
+
+        /* 历史记录 */
+        .history-item { background: white; padding: 16px; margin-bottom: 12px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); display: flex; justify-content: space-between; align-items: flex-start; }
+        .history-content { flex: 1; }
+        .history-date { font-size: 0.75rem; color: #bbb; margin-bottom: 8px; display: block; }
+        .h-tag { display: inline-block; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; color: white; margin-right: 5px; margin-bottom: 4px; }
+        .h-tag.journal { background-color: var(--secondary); }
+        .h-tag.quick { background-color: #ff7675; }
+        .h-section { margin-top: 6px; font-size: 0.9rem; line-height: 1.4; color: #444; }
+        .h-plan { margin-top: 10px; padding: 8px; background: rgba(0, 206, 201, 0.1); border-radius: 6px; border-left: 3px solid var(--accent); font-size: 0.9rem; color: #333; }
+        .btn-delete { color: #ff7675; border: none; background: none; font-size: 1.2rem; padding: 0 0 0 10px; cursor: pointer; }
+
+        /* 西语卡片 */
+        .spanish-card { background: white; border-radius: 24px; padding: 30px 20px; text-align: center; box-shadow: var(--shadow); flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .sp-word { font-size: 2.5rem; color: var(--primary); font-weight: 800; margin: 10px 0; }
+        .sp-controls { display: flex; gap: 15px; margin-top: 30px; width: 100%; justify-content: center; }
+        .sp-btn-audio { flex: 1; background: #f8f9fa; border: 1px solid #eee; padding: 12px; border-radius: 30px; cursor: pointer; color: #555; font-weight: bold; }
+
+        /* 通用模态框 (测验 & 解决问题) */
+        .modal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 20; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; }
+        .modal-card { background: white; width: 100%; max-width: 400px; padding: 25px; border-radius: 20px; box-sizing: border-box; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .quiz-option { width: 100%; padding: 15px; margin: 8px 0; border: 2px solid #eee; border-radius: 12px; background: white; cursor: pointer; font-weight: bold; color: #555; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    
+    <!-- 1. 首页 -->
+    <div id="page-home" class="page active">
+        <div class="header">
+            <span class="logo">DaySpark</span>
+            <button class="btn-icon" onclick="navigateTo('page-history')">📜 足迹</button>
+        </div>
+        <div class="quote-container">
+            <div id="quote-display"></div>
+            <button class="refresh-btn" onclick="refreshQuote()">🔄 换一个名言</button>
+        </div>
+        <div class="home-actions">
+            <button class="btn-main" onclick="navigateTo('page-journal')">✍️ 深度复盘 (B=MAP)</button>
+            <button class="btn-thought" onclick="navigateTo('page-thoughts')">💡 思考与问题 (Q&A)</button>
+            <button class="btn-sub" onclick="navigateTo('page-spanish')">🇪🇸 学习西语 (闯关)</button>
+        </div>
+        <button class="btn-float-action" onclick="navigateTo('page-quick')">+</button>
+    </div>
+
+    <!-- 2. 简记页面 -->
+    <div id="page-journal" class="page">
+        <div class="header">
+            <button class="btn-icon" onclick="goBack()">← 返回</button>
+            <span style="font-weight:bold;">每日复盘</span>
+        </div>
+        <div class="card-section">
+            <div class="fogg-block">
+                <div class="fogg-title">❤️ 1. 情绪燃料 (Motivation)</div>
+                <div class="input-group">
+                    <input type="text" id="j-gratitude" class="input-iconed bg-gratitude" placeholder="值得感恩的小确幸...">
+                    <input type="text" id="j-surprise" class="input-iconed bg-surprise" placeholder="意想不到的惊喜...">
+                    <input type="text" id="j-unhappy" class="input-iconed bg-unhappy" placeholder="不开心/需要排解的事...">
+                </div>
+            </div>
+            <div class="fogg-block">
+                <div class="fogg-title">⚡ 2. 能力充电 (Ability)</div>
+                <textarea id="j-learn" class="area-box" rows="2" placeholder="新概念、单词、生活技巧..."></textarea>
+            </div>
+            <div class="fogg-block">
+                <div class="fogg-title">🔔 3. 行为复盘 (B=MAP)</div>
+                <textarea id="j-review" class="area-box" rows="2" placeholder="分析原因：是动机不够？太难做到？还是忘了？"></textarea>
+                <div class="action-label">👉 4. 改进：所以，我接下来要...</div>
+                <input type="text" id="j-plan" class="input-action" placeholder="写下一个具体的行动指令">
+            </div>
+        </div>
+        <button class="btn-main" style="width:100%" onclick="saveJournal()">归档并执行</button>
+    </div>
+
+    <!-- 3. 思考与问题 -->
+    <div id="page-thoughts" class="page">
+        <div class="header">
+            <button class="btn-icon" onclick="goBack()">← 返回</button>
+            <span style="font-weight:bold;">思考与问题</span>
+        </div>
+        
+        <!-- 输入区域 -->
+        <div class="card-section" style="background:#fff9f0; border:1px solid #ffeeba;">
+            <div style="font-weight:bold; color:#e67e22; margin-bottom:10px;">🤔 遇到什么问题/奇思妙想？</div>
+            <textarea id="t-input-question" class="area-box" rows="3" placeholder="例如：为什么天空是蓝的？..."></textarea>
+            
+            <div class="switch-container">
+                <input type="checkbox" id="t-is-solved" class="toggle-checkbox" onchange="toggleAnswerInput()">
+                <label for="t-is-solved">已经解决/有答案了？</label>
+            </div>
+            
+            <div id="t-answer-container" style="display:none; animation: fadeIn 0.3s;">
+                <textarea id="t-input-answer" class="area-box" rows="3" placeholder="记录下你的答案或感悟..."></textarea>
+                <div style="font-size:0.85rem; color:#666; margin:8px 0 4px 0;">答案来源：</div>
+                <div class="source-group">
+                    <input type="radio" name="t-source" id="s-self" value="self" class="source-input" checked>
+                    <label for="s-self" class="source-label">🧠 自己思考</label>
+                    
+                    <input type="radio" name="t-source" id="s-ai" value="ai" class="source-input">
+                    <label for="s-ai" class="source-label">🤖 借助AI</label>
+                    
+                    <input type="radio" name="t-source" id="s-other" value="other" class="source-input">
+                    <label for="s-other" class="source-label">🔍 其它</label>
+                </div>
+            </div>
+            
+            <button class="btn-main" style="width:100%; margin-top:15px; background:#e67e22;" onclick="saveThought()">记录下来</button>
+        </div>
+
+        <div class="thought-list-title">
+            待探索 (Unsolved) <span id="count-unsolved" class="count-badge">0</span>
+        </div>
+        <div id="list-unsolved"></div>
+
+        <div class="thought-list-title">
+            已沉淀 (Solved) <span id="count-solved" class="count-badge">0</span>
+        </div>
+        <div id="list-solved"></div>
+    </div>
+
+    <!-- 4. 西语学习 -->
+    <div id="page-spanish" class="page">
+        <div class="header">
+            <button class="btn-icon" onclick="goBack()">← 返回</button>
+            <span style="font-weight:bold;">单词卡 (<span id="learn-count">0</span>/5)</span>
+        </div>
+        <div class="spanish-card" id="spanish-card-content">
+            <div style="width:100%;height:160px;background:#f0f2f5;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#aaa;border:2px dashed #e0e0e0;margin-bottom:20px;">[图片区]</div>
+            <span class="sp-type">名词</span>
+            <div class="sp-word">Gato</div>
+            <div class="sp-meaning">猫</div>
+            <div style="color:#999;font-style:italic;margin-top:10px;" class="sp-sentence">...</div>
+            <div class="sp-controls">
+                <button class="sp-btn-audio" onclick="speakSpanish('male')">👨 男声</button>
+                <button class="sp-btn-audio" onclick="speakSpanish('female')">👩 女声</button>
+            </div>
+        </div>
+        <button class="btn-main" style="margin-top:20px; width:100%" onclick="nextWord()">下一个 (已学会)</button>
+    </div>
+
+    <!-- 5. 突发小事 -->
+    <div id="page-quick" class="page">
+        <div class="header">
+            <button class="btn-icon" onclick="goBack()">← 返回</button>
+            <span style="font-weight:bold;">闪念胶囊</span>
+        </div>
+        <div class="card-section">
+            <textarea id="quick-note-text" rows="10" placeholder="此时此刻，快速记录..." class="area-box" style="border:none; background:white; font-size:1.1rem;"></textarea>
+        </div>
+        <button class="btn-main" style="width:100%" onclick="saveQuickNote()">保存</button>
+    </div>
+
+    <!-- 6. 历史记录 -->
+    <div id="page-history" class="page">
+        <div class="header">
+            <button class="btn-icon" onclick="goBack()">← 返回</button>
+            <span style="font-weight:bold;">时光机</span>
+        </div>
+        <div id="history-list"></div>
+        <div style="text-align:center; margin-top:20px;">
+            <button onclick="clearAllHistory()" style="color:#ff7675; background:none; border:none; padding:10px;">⚠️ 清空所有</button>
+        </div>
+    </div>
+
+    <!-- 模态框：测验 -->
+    <div id="quiz-overlay" class="modal-overlay">
+        <div class="modal-card">
+            <h2 style="color:var(--primary);margin-top:0;">⚡ 快速回顾</h2>
+            <p id="quiz-question" style="font-size:1.4rem;font-weight:bold;margin-bottom:20px;"></p>
+            <div id="quiz-options" style="width:100%"></div>
+        </div>
+    </div>
+
+    <!-- 模态框：解决问题补录 -->
+    <div id="solve-modal" class="modal-overlay">
+        <div class="modal-card" style="text-align:left;">
+            <h3 style="margin-top:0; color:var(--primary);">✅ 解决问题</h3>
+            <p id="solve-question-text" style="color:#666; font-style:italic; margin-bottom:15px; font-weight:bold;"></p>
+            
+            <textarea id="solve-answer-input" class="area-box" rows="4" placeholder="写下答案或感悟..."></textarea>
+            
+            <div style="font-size:0.85rem; color:#666; margin:15px 0 5px 0;">答案来源：</div>
+            <div class="source-group">
+                <input type="radio" name="solve-source" id="ss-self" value="self" class="source-input" checked>
+                <label for="ss-self" class="source-label">🧠 自己思考</label>
+                
+                <input type="radio" name="solve-source" id="ss-ai" value="ai" class="source-input">
+                <label for="ss-ai" class="source-label">🤖 借助AI</label>
+                
+                <input type="radio" name="solve-source" id="ss-other" value="other" class="source-input">
+                <label for="ss-other" class="source-label">🔍 其它</label>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button onclick="closeSolveModal()" style="flex:1; padding:10px; background:#eee; border:none; border-radius:8px; cursor:pointer;">取消</button>
+                <button onclick="confirmSolve()" style="flex:1; padding:10px; background:var(--green); color:white; border:none; border-radius:8px; cursor:pointer; font-weight:bold;">确认解决</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    /* --- JS 逻辑 --- */
+
+    // 1. 数据配置
+    const quotes = [
+        { text: "我年青时以为金钱至上，而今年事已去，发现果真如此。", author: "王尔德" },
+        { text: "人的一切痛苦，本质上都是对自己的无能的愤怒。", author: "王小波" },
+        { text: "生活不是等待风暴过去，而是学会在雨中跳舞。", author: "Vivian Greene" },
+        { text: "我们花了很多时间去思考未来，却忘了现在才是我们唯一拥有的时间。", author: "佚名" },
+        { text: "你的负担将变成礼物，你受的苦将照亮你的路。", author: "泰戈尔" },
+        { text: "万物皆有裂痕，那是光照进来的地方。", author: "莱昂纳德·科恩" },
+        { text: "种一棵树最好的时间是十年前，其次是现在。", author: "Dambisa Moyo" },
+        { text: "未被审视的人生是不值得过的。", author: "苏格拉底" },
+        { text: "岁月不饶人，我亦未曾饶过岁月。", author: "木心" },
+        { text: "纵有疾风起，人生不言弃。", author: "瓦雷里" }
+    ];
+
+    const spanishWords = [
+        { word: "Hola", mean: "你好", type: "感叹词", ex: "Hola, ¿cómo estás?" },
+        { word: "Amor", mean: "爱", type: "名词", ex: "El amor es ciego." },
+        { word: "Tiempo", mean: "时间", type: "名词", ex: "No tengo tiempo." },
+        { word: "Vida", mean: "生活", type: "名词", ex: "La vida es bella." },
+        { word: "Libro", mean: "书", type: "名词", ex: "Me gusta este libro." },
+        { word: "Feliz", mean: "快乐", type: "形容词", ex: "Soy muy feliz." },
+        { word: "Agua", mean: "水", type: "名词", ex: "Quiero agua." },
+        { word: "Amigo", mean: "朋友", type: "名词", ex: "Es mi mejor amigo." },
+        { word: "Gracias", mean: "谢谢", type: "感叹词", ex: "Muchas gracias." }
+    ];
+
+    // 2. 状态变量
+    let historyStack = ['page-home'];
+    let currentSessionWords = 0;
+    let currentWordIndex = 0;
+    let quizQueue = [];
+    let spanishVoices = [];
+    let currentSolvingId = null; 
+
+    // 3. 语音加载
+    function loadVoices() {
+        const all = window.speechSynthesis.getVoices();
+        spanishVoices = all.filter(v => v.lang.includes('es'));
+    }
+    if (window.speechSynthesis.onvoiceschanged !== undefined) window.speechSynthesis.onvoiceschanged = loadVoices;
+    setTimeout(loadVoices, 500);
+
+    function speakSpanish(gender) {
+        const word = spanishWords[currentWordIndex].word;
+        const u = new SpeechSynthesisUtterance(word);
+        if(!spanishVoices.length) loadVoices();
+        if(spanishVoices.length) {
+            let v = spanishVoices[0];
+            if(gender === 'female') {
+                const f = spanishVoices.find(i => i.name.includes('Female')||i.name.includes('Monica'));
+                if(f) v = f;
+            } else {
+                const m = spanishVoices.find(i => i.name.includes('Male')||i.name.includes('Jorge'));
+                if(m) v = m;
+            }
+            u.voice = v;
+        } else { u.lang = 'es-ES'; }
+        u.rate = 0.9;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+    }
+
+    // 4. 导航
+    function navigateTo(pageId) {
+        if(historyStack[historyStack.length-1] === pageId) return;
+        const cur = document.getElementById(historyStack[historyStack.length-1]);
+        const next = document.getElementById(pageId);
+        cur.classList.add('previous'); cur.classList.remove('active');
+        next.classList.remove('previous'); next.classList.add('active');
+        historyStack.push(pageId);
+        if(pageId === 'page-history') renderHistory();
+        if(pageId === 'page-thoughts') renderThoughts();
+    }
+
+    function goBack() {
+        if(historyStack.length <=1) return;
+        const curId = historyStack.pop();
+        const prevId = historyStack[historyStack.length-1];
+        const cur = document.getElementById(curId);
+        const prev = document.getElementById(prevId);
+        cur.classList.remove('active'); cur.style.transform = 'translateX(100%)';
+        setTimeout(()=>{ if(!cur.classList.contains('active')) cur.style.transform=''; },400);
+        prev.classList.remove('previous'); prev.classList.add('active');
+    }
+
+    // 5. 名言
+    let usedQuotes = JSON.parse(localStorage.getItem('ds_quotes') || '[]');
+    function refreshQuote() {
+        let avail = quotes.filter((_,i) => !usedQuotes.includes(i));
+        if(!avail.length) { avail = quotes; usedQuotes = []; }
+        const r = Math.floor(Math.random()*avail.length);
+        const q = avail[r];
+        const realIdx = quotes.indexOf(q);
+        const el = document.getElementById('quote-display');
+        el.style.opacity = 0;
+        setTimeout(()=>{
+            el.innerHTML = `<div class="quote-text">“${q.text}”</div><div class="quote-author">—— ${q.author}</div>`;
+            el.style.opacity = 1;
+        },200);
+        usedQuotes.push(realIdx);
+        localStorage.setItem('ds_quotes', JSON.stringify(usedQuotes));
+    }
+
+    // 6. 思考与问题板块逻辑
+    function toggleAnswerInput() {
+        const checked = document.getElementById('t-is-solved').checked;
+        document.getElementById('t-answer-container').style.display = checked ? 'block' : 'none';
+    }
+
+    function saveThought() {
+        const question = document.getElementById('t-input-question').value.trim();
+        const isSolved = document.getElementById('t-is-solved').checked;
+        let answer = "";
+        let source = "";
+
+        if(!question) return alert("请先记录问题或想法");
+        
+        if(isSolved) {
+            answer = document.getElementById('t-input-answer').value.trim();
+            if(!answer) return alert("既然解决了，请简单记录下答案哦");
+            
+            // 获取选中的来源
+            const radios = document.getElementsByName('t-source');
+            for(let r of radios) { if(r.checked) source = r.value; }
+        }
+
+        const thought = {
+            id: Date.now(),
+            question: question,
+            solved: isSolved,
+            answer: answer,
+            source: source,
+            date: new Date().toLocaleDateString()
+        };
+
+        const thoughts = JSON.parse(localStorage.getItem('ds_thoughts') || '[]');
+        thoughts.unshift(thought);
+        localStorage.setItem('ds_thoughts', JSON.stringify(thoughts));
+
+        // 重置
+        document.getElementById('t-input-question').value = '';
+        document.getElementById('t-input-answer').value = '';
+        document.getElementById('t-is-solved').checked = false;
+        toggleAnswerInput();
+        
+        renderThoughts();
+        alert("记录已保存！");
+    }
+
+    function deleteThought(id) {
+        if(!confirm("确定要删除这条记录吗？")) return;
+        let thoughts = JSON.parse(localStorage.getItem('ds_thoughts') || '[]');
+        thoughts = thoughts.filter(t => t.id !== id);
+        localStorage.setItem('ds_thoughts', JSON.stringify(thoughts));
+        renderThoughts();
+    }
+
+    function renderThoughts() {
+        const thoughts = JSON.parse(localStorage.getItem('ds_thoughts') || '[]');
+        const listUnsolved = document.getElementById('list-unsolved');
+        const listSolved = document.getElementById('list-solved');
+        
+        listUnsolved.innerHTML = '';
+        listSolved.innerHTML = '';
+
+        let countU = 0;
+        let countS = 0;
+
+        const getSourceTag = (src) => {
+            if(src === 'self') return '<span class="tag-source self">🧠 自己思考</span>';
+            if(src === 'ai') return '<span class="tag-source ai">🤖 借助AI</span>';
+            return '<span class="tag-source other">🔍 其它</span>';
+        };
+
+        thoughts.forEach(t => {
+            const div = document.createElement('div');
+            // 删除按钮
+            const delBtn = `<button class="btn-thought-delete" onclick="deleteThought(${t.id})">×</button>`;
+
+            if(t.solved) {
+                countS++;
+                div.className = 'thought-item solved';
+                div.innerHTML = `
+                    ${delBtn}
+                    <div class="t-question">💡 ${t.question}</div>
+                    <div class="t-answer">
+                        ${getSourceTag(t.source)}
+                        ${t.answer || ''}
+                    </div>
+                    <div class="t-date">${t.date}</div>
+                `;
+                listSolved.appendChild(div);
+            } else {
+                countU++;
+                div.className = 'thought-item unsolved';
+                div.innerHTML = `
+                    ${delBtn}
+                    <div class="t-question">❓ ${t.question}</div>
+                    <div class="t-date">
+                        <span>${t.date}</span>
+                        <button class="btn-solve-now" onclick="openSolveModal(${t.id})">✅ 我悟了/解决</button>
+                    </div>
+                `;
+                listUnsolved.appendChild(div);
+            }
+        });
+
+        document.getElementById('count-unsolved').innerText = countU;
+        document.getElementById('count-solved').innerText = countS;
+    }
+
+    // --- 解决问题模态框逻辑 ---
+    function openSolveModal(id) {
+        currentSolvingId = id;
+        const thoughts = JSON.parse(localStorage.getItem('ds_thoughts') || '[]');
+        const t = thoughts.find(item => item.id === id);
+        if(!t) return;
+
+        document.getElementById('solve-question-text').innerText = t.question;
+        document.getElementById('solve-answer-input').value = "";
+        document.getElementById('ss-self').checked = true;
+        
+        document.getElementById('solve-modal').style.display = 'flex';
+    }
+
+    function closeSolveModal() {
+        document.getElementById('solve-modal').style.display = 'none';
+        currentSolvingId = null;
+    }
+
+    function confirmSolve() {
+        if(!currentSolvingId) return;
+        const answer = document.getElementById('solve-answer-input').value.trim();
+        if(!answer) return alert("请记录下答案或感悟");
+
+        let source = 'self';
+        const radios = document.getElementsByName('solve-source');
+        for(let r of radios) { if(r.checked) source = r.value; }
+
+        const thoughts = JSON.parse(localStorage.getItem('ds_thoughts') || '[]');
+        const idx = thoughts.findIndex(t => t.id === currentSolvingId);
+        
+        if(idx !== -1) {
+            thoughts[idx].solved = true;
+            thoughts[idx].answer = answer;
+            thoughts[idx].source = source;
+            localStorage.setItem('ds_thoughts', JSON.stringify(thoughts));
+            renderThoughts();
+            closeSolveModal();
+        }
+    }
+
+    // 7. 日记逻辑 (B=MAP)
+    function saveJournal() {
+        const gratitude = document.getElementById('j-gratitude').value.trim();
+        const surprise = document.getElementById('j-surprise').value.trim();
+        const unhappy = document.getElementById('j-unhappy').value.trim();
+        const learn = document.getElementById('j-learn').value.trim();
+        const review = document.getElementById('j-review').value.trim();
+        const plan = document.getElementById('j-plan').value.trim();
+
+        if(!gratitude && !surprise && !unhappy && !learn && !review && !plan) return alert("写点什么吧~");
+
+        const entry = {
+            type: 'journal',
+            date: new Date().toLocaleString(),
+            data: { gratitude, surprise, unhappy, learn, review, plan }
+        };
+        saveToLocalStorage(entry);
+        ['j-gratitude','j-surprise','j-unhappy','j-learn','j-review','j-plan'].forEach(id=>document.getElementById(id).value='');
+        alert("归档成功");
+        goBack();
+    }
+
+    function saveQuickNote() {
+        const text = document.getElementById('quick-note-text').value.trim();
+        if(!text) return;
+        saveToLocalStorage({ type: 'quick', date: new Date().toLocaleString(), content: text });
+        document.getElementById('quick-note-text').value='';
+        alert("记录成功");
+        goBack();
+    }
+
+    function saveToLocalStorage(entry) {
+        const h = JSON.parse(localStorage.getItem('ds_history')||'[]');
+        h.unshift(entry);
+        localStorage.setItem('ds_history', JSON.stringify(h));
+    }
+
+    // 8. 历史渲染
+    function renderHistory() {
+        const list = document.getElementById('history-list');
+        const h = JSON.parse(localStorage.getItem('ds_history')||'[]');
+        list.innerHTML = '';
+        if(!h.length) { list.innerHTML = '<div style="text-align:center;color:#ccc;padding:20px;">空空如也</div>'; return; }
+
+        h.forEach((item, idx) => {
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            let contentHtml = '';
+            if(item.type === 'journal') {
+                const d = item.data;
+                contentHtml = `<span class="h-tag journal">📅 每日复盘</span>`;
+                if(d.gratitude) contentHtml += `<div class="h-section"><span class="h-label">🙏 感恩:</span> ${d.gratitude}</div>`;
+                if(d.surprise) contentHtml += `<div class="h-section"><span class="h-label">✨ 惊喜:</span> ${d.surprise}</div>`;
+                if(d.unhappy) contentHtml += `<div class="h-section"><span class="h-label">🌧️ 情绪:</span> ${d.unhappy}</div>`;
+                if(d.learn) contentHtml += `<div class="h-section"><span class="h-label">🧠 新知:</span> ${d.learn}</div>`;
+                if(d.review) contentHtml += `<div class="h-section"><span class="h-label">🔔 分析:</span> ${d.review}</div>`;
+                if(d.plan) contentHtml += `<div class="h-plan"><span class="h-label">🚀 改进:</span> ${d.plan}</div>`;
+            } else {
+                contentHtml = `<span class="h-tag quick">⚡ 闪念</span><div class="h-section">${item.content}</div>`;
+            }
+            div.innerHTML = `
+                <div class="history-content">
+                    <span class="history-date">${item.date}</span>
+                    ${contentHtml}
+                </div>
+                <button class="btn-delete" onclick="delHistory(${idx})">×</button>
+            `;
+            list.appendChild(div);
+        });
+    }
+
+    function delHistory(idx) {
+        if(!confirm("删除此条？")) return;
+        const h = JSON.parse(localStorage.getItem('ds_history')||'[]');
+        h.splice(idx,1);
+        localStorage.setItem('ds_history', JSON.stringify(h));
+        renderHistory();
+    }
+    function clearAllHistory() {
+        if(confirm("确定清空？")) { localStorage.setItem('ds_history','[]'); renderHistory(); }
+    }
+
+    // 9. 西语逻辑
+    function updateSpCard() {
+        const w = spanishWords[currentWordIndex];
+        const c = document.getElementById('spanish-card-content');
+        c.querySelector('.sp-word').innerText = w.word;
+        c.querySelector('.sp-meaning').innerText = w.mean;
+        c.querySelector('.sp-type').innerText = w.type;
+        c.querySelector('.sp-sentence').innerText = w.ex;
+        c.querySelector('div:first-child').innerText = `[图片: ${w.word}]`;
+    }
+    function nextWord() {
+        quizQueue.push(spanishWords[currentWordIndex]);
+        currentWordIndex = (currentWordIndex+1)%spanishWords.length;
+        currentSessionWords++;
+        document.getElementById('learn-count').innerText = currentSessionWords%5;
+        if(currentSessionWords>0 && currentSessionWords%5===0) startQuiz();
+        else updateSpCard();
+    }
+    function startQuiz() {
+        const ov = document.getElementById('quiz-overlay');
+        const tg = quizQueue[Math.floor(Math.random()*quizQueue.length)];
+        ov.style.display = 'flex';
+        document.getElementById('quiz-question').innerText = `"${tg.word}" 的意思是？`;
+        let opts = [tg];
+        while(opts.length<3) {
+            let r = spanishWords[Math.floor(Math.random()*spanishWords.length)];
+            if(!opts.includes(r)) opts.push(r);
+        }
+        opts.sort(()=>Math.random()-0.5);
+        const c = document.getElementById('quiz-options');
+        c.innerHTML = '';
+        opts.forEach(o => {
+            const b = document.createElement('div');
+            b.className = 'quiz-option';
+            b.innerText = o.mean;
+            b.onclick = () => {
+                if(o===tg) { alert("✅ 正确!"); ov.style.display='none'; quizQueue=[]; updateSpCard(); }
+                else alert("❌ 错误");
+            };
+            c.appendChild(b);
+        });
+    }
+
+    // Init
+    refreshQuote();
+    updateSpCard();
+
+</script>
+</body>
+</html>
